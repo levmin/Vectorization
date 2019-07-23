@@ -45,7 +45,7 @@ template<class T> concept floating_point = std::is_floating_point_v<T>;
 
 namespace std {
    namespace numbers {
-      template<typename T, unsigned N> 
+      template<FLOATING_POINT T, unsigned N>
       class FloatVec
       {
       public:
