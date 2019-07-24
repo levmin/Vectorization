@@ -25,15 +25,18 @@
 */
 
 #ifdef __cpp_concepts
-#if __has_include(<concepts>)
-#include <concepts>
+   #if __has_include(<concepts>)
+      #include <concepts>
+   #else
+      #include <type_traits>
+      template<class T> concept floating_point = std::is_floating_point_v<T>;
+      template<class T> concept integral = is_integral_v<T>;
+   #endif
+   #define FLOATING_POINT floating_point
+   #define INTEGRAL integral
 #else
-#include <type_traits>
-template<class T> concept floating_point = std::is_floating_point_v<T>;
-#endif
-#define FLOATING_POINT floating_point
-#else
-#define FLOATING_POINT typename
+   #define FLOATING_POINT typename
+   #define INTEGRAL typename
 #endif
 
 #if __has_include(<version>)
@@ -46,21 +49,21 @@ template<class T> concept floating_point = std::is_floating_point_v<T>;
 namespace std {
    namespace numbers {
       template<FLOATING_POINT T, unsigned N>
-      class FloatVec
+      class simd_float
       {
       public:
-         //TODO - this constructor should take an std::span as a parameter
-         FloatVec(const T* p)
+         //TODO - this constructor should take an std::span<T> as a parameter
+         simd_float(const T* p)
          {
             memcpy(data, p, sizeof(T) * N);
          }
-         FloatVec& operator+=(FloatVec& v)
+         simd_float& operator+=(simd_float& v)
          {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < N; i++)
                data[i] += v.data[i];
             return *this;
          }
-         //TODO - this function should take an std::span as a parameter
+         //TODO - this function should take an std::span<T> as a parameter
          void store(T* p)
          {
             memcpy(p, data, sizeof(T) * N);
@@ -72,22 +75,22 @@ namespace std {
       
       /* Instantiation for a vector of 4 floats accelerated with intrinsics
       */
-      template<> class FloatVec<float, 4>
+      template<> class simd_float<float, 4>
       {
       public:
-         //TODO - this constructor should take an std::span as a parameter
-         FloatVec(const float* p)
+         //TODO - this constructor should take an std::span<T> as a parameter
+         simd_float(const float* p)
          {
 //            cout << "load\n";
             data = _mm_load_ps(p);
          }
-         FloatVec& operator+=(FloatVec& v)
+         simd_float& operator+=(simd_float& v)
          {
 //            cout << "add\n";
             data = _mm_add_ps(data, v.data);
             return *this;
          }
-         //TODO - this function should take an std::span as a parameter
+         //TODO - this function should take an std::span<T> as a parameter
          void store(float* p)
          {
 //            cout << "store\n";
@@ -97,17 +100,45 @@ namespace std {
       private:
          __m128 data;
       };
+
+      template<INTEGRAL T, unsigned N>
+      class simd_int
+      {
+      public:
+         //TODO - this constructor should take an std::span<T> as a parameter
+         simd_int(const T* p)
+         {
+            memcpy(data, p, sizeof(T) * N);
+         }
+         simd_int& operator+=(simd_int& v)
+         {
+            for (int i = 0; i < 4; i++)
+               data[i] += v.data[i];
+            return *this;
+         }
+         //TODO - this function should take an std::span<T> as a parameter
+         void store(T* p)
+         {
+            memcpy(p, data, sizeof(T) * N);
+         }
+
+      private:
+         T data[N];
+      };
+
+
    }
 }
 #undef FLOATING_POINT
+#undef INTEGRAL
 using namespace std;
 int main()
 {
    float A[] = { 1,2,3,4 };
    float B[] = { 5,6,7,8 };
    float C[] = { 0,0,0,0 };
-   numbers::FloatVec<float,4> a(A);
-   numbers::FloatVec<float, 4> b(B);
+   numbers::simd_float<float,4> a(A);
+   numbers::simd_float<float,4> b(B);
    a += b;
    a.store(C);
    for (auto c : C)
